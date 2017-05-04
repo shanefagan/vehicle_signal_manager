@@ -11,15 +11,15 @@ with open(path.join(BASE_DIR, 'README.md')) as f:
     LONG_DISCRIPTION = f.read()
 
 setup(
-    name='profile-manager',
+    name='vehicle-signal-manager',
 
     version='0.1',
 
-    description='A sample Python project',
+    description='Process and route signals according to certain rules',
     long_description=LONG_DISCRIPTION,
 
     # The project's main homepage.
-    url='https://collabora.com/',
+    url='github.com/GENIVI/vehicle_signal_manager',
 
     # Author details
     author='Shane Fagan',
