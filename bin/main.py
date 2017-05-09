@@ -13,6 +13,7 @@ import os
 from time import sleep
 from threading import Thread
 sys.path.append(os.path.dirname(__file__))
+sys.path.append('..')
 RULES_PATH = os.path.abspath(os.path.join('..', 'rules', 'simple'))
 
 
@@ -52,6 +53,15 @@ def run():
         else:
             Thread(target=process, args=(line, None)).start()
 
+def run_ipc():
+    receive_signal = PluginLoader('ipc_plugin.ipc_mod').receive_signal
+    try:
+        while True:
+            signal, value = receive_signal()
+            Thread(target=process, args=(signal, value)).start()
+    except KeyboardInterrupt:
+        exit(0)
+
 def process(signal, value):
     '''
         Handle the emitting of singals and adding values to state
@@ -81,4 +91,8 @@ def process_delay(signal, value, delay):
 
 if __name__ == "__main__":
     main = Main()
-    run()
+    if len(sys.argv) > 1 and sys.argv[1] == '--ipc':
+        from ipc_plugin.plugin_loader import PluginLoader
+        run_ipc()
+    else:
+        run()
