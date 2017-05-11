@@ -76,32 +76,42 @@ def parse_rules(data):
 
     return code
 
+def send(signal, value):
+    print("{} {}".format(signal, value))
 
 def emit(message):
-    print(message)
+    send(message, 0)
+
+def receive():
+    '''
+        Loop to grab logic from stdin, then spawn a threads for processing
+    '''
+    line = sys.stdin.readline()
+    line = line.replace(" ", "").strip('\n')
+    if line == "":
+        # Ignore blank lines
+        pass
+    if line == "quit":
+        exit(0)
+    elif "=" in line:
+        line = line.split("=")
+        return (line[0], line[1])
+    else:
+        return (line, None)
+
+def run():
+    try:
+        while True:
+            signal, value = receive()
+            process(signal, value)
+    except KeyboardInterrupt:
+        exit(0)
 
 def exec_code(signal):
     try:
         exec(state.code[signal])
     except Exception as e:
         print(e)
-
-def run():
-    '''
-        Loop to grab logic from stdin, then spawn a threads for processing
-    '''
-    for line in sys.stdin:
-        line = line.replace(" ", "").strip('\n')
-        if line == "":
-            # Ignore blank lines
-            pass
-        if line == "quit":
-            break
-        elif "=" in line:
-            line = line.split("=")
-            process(line[0], line[1])
-        else:
-            process(line, None)
 
 def process(signal, value):
     '''
@@ -128,7 +138,15 @@ if __name__ == "__main__":
                         help='Configuration yaml file', required=True)
     parser.add_argument('--rules', type=str,
                         help='yaml rules folder', required=True)
+    parser.add_argument('--ipc-module', type=str, help='Load IPC module')
     args = parser.parse_args()
+
+    if args.ipc_module:
+        from ipc.loader import load_plugin
+        # Load IPC module plugin.
+        # This overrides the send/receive functions with the ones
+        # defined in the plugin module.
+        load_plugin('ipc.{}'.format(args.ipc_module))
 
     state = State(args.conf, args.rules)
     run()
