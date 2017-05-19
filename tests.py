@@ -27,9 +27,21 @@ class TestVSM(unittest.TestCase):
 
         process = Popen(cmd, stdin=PIPE, stdout=PIPE)
 
-        output, _ = process.communicate(input=input_data.encode(), timeout=10)
-        self.assertEqual(output.decode(), expected_output)
 
+        output, _ = process.communicate(input=input_data.encode(), timeout=2)
+        output_string = output.decode()
+
+        # strip any prepended timestamp, if it exists
+        output_final = ''
+        for line in output_string.splitlines(True):
+            try:
+                timestamp, remainder = line.split(': ', 1)
+            except ValueError:
+                remainder = line
+
+            output_final = output_final + remainder
+
+        self.assertEqual(output_final , expected_output)
 
     def test_simple0(self):
         input_data = 'transmission_gear = "reverse"'
@@ -65,6 +77,26 @@ class TestVSM(unittest.TestCase):
         input_data = 'moving = false\ndamage = true'
         expected_output = 'State = {\nmoving = False\n}\nState = {\ndamage = True\nmoving = False\n}\ncar.stop = True\n'
         self.run_vsm('simple2', input_data, expected_output, False)
+
+    @unittest.skip("delays not yet implemented")
+    def test_delay(self):
+        input_data = ''
+        expected_output = 'lights.external.headlights = True\n'
+        # NOTE: ideally, this would ensure the delay in output
+        self.run_vsm('delay', input_data, expected_output, False)
+
+    @unittest.skip("exclusive conditions not yet implemented")
+    def test_exclusive_conditions(self):
+        input_data = 'remote_key.command = "unlock"\nlock_state = true\nremote_key.command = "lock"'
+        expected_output = 'lock_state = False\nhorn = True\n'
+        self.run_vsm('exclusive_conditions', input_data, expected_output, False)
+
+    @unittest.skip("subclauses, arithmetic, booleans not yet implemented")
+    def test_subclauses_arithmetic_booleans(self):
+        input_data = 'flux_capacitor.energy_generated = 1.1\nmovement.speed = 140'
+        expected_output = 'lights.external.time_travel_imminent\nlights.internal.time_travel_imminent\n'
+        self.run_vsm('subclauses_arithmetic_booleans', input_data,
+                expected_output, False)
 
 if __name__ == '__main__':
     unittest.main()
