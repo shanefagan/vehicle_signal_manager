@@ -76,6 +76,8 @@ class State(object):
         self.log_categories = log_categories
 
         self.rules = {}
+        self.signals = {}
+
         with open(rules) as rules_file:
             self.parse_rules(rules_file)
 
@@ -88,7 +90,7 @@ class State(object):
                     vars(self.variables)[item[0]] = item[1]
 
 
-    def handle_emit(self, data, condition):
+    def handle_emit(self, data, ret_rule, condition):
         signal = data["emit"]["signal"]
         value = data["emit"]["value"]
 
@@ -96,22 +98,27 @@ class State(object):
             action = "threading.Thread(target=delayed_emit, args=( \
                             \'{}\', \'{}\', {})).start()".format(signal,
                             value, data["emit"]["delay"])
+        elif "start" in data["emit"].keys() and "stop" in data["emit"].keys():
+            action = "threading.Thread(target=monitored_rule, args=( \
+                            \'{}\', \'{}\', {}, {})).start()".format(condition,
+                            data["emit"]["start"], data["emit"]["stop"])
         else:
             action = "emit(\'{}\', \'{}\')".format(signal, value)
 
         action = ast.parse(action)
 
-        if condition == True:
+        if ret_rule == True:
             return action.body[0]
         else:
             rule = compile(action, '<string>', 'exec')
             exec(rule)
 
+
     def handle_condition(self, data):
         condition = data["condition"]
         condition_expr = ast.parse(condition).body[0]
 
-        action_true_1_body = self.handle_emit(data, True)
+        action_true_1_body = self.handle_emit(data, True, condition)
         actions_true = [action_true_1_body]
         actions_false = []
 
@@ -209,6 +216,22 @@ def send(signal, value):
 def delayed_emit(signal, value, delay):
     time.sleep(delay/1000)
     emit(signal, value)
+
+def monitored_rule(signal, rule, start, stop):
+    # pass the UUID of the rule to be evaluated and the follow up rule
+    current_milli_time = lambda: int(round(time.time() * 1000))
+    start_time = current_milli_time()
+
+    time.sleep(start/1000)
+    while True:
+        result = eval(rule)
+
+        if result:
+            # call the next signal in the chain
+            pass
+        if current_milli_time()-start_time > stop:
+            break
+        time.sleep(0.1)
 
 def emit(signal, value):
     send(signal, value)
