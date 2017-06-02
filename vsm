@@ -114,7 +114,7 @@ class State(object):
             exec(rule)
 
 
-    def handle_condition(self, data):
+    def handle_condition(self, data, ret_rule):
         condition = data["condition"]
         condition_expr = ast.parse(condition).body[0]
 
@@ -138,18 +138,49 @@ class State(object):
         ast.fix_missing_locations(ast_module)
 
         rule = compile(ast_module, '<string>', 'exec')
-        self.add_rule(condition_expr, rule)
+        if ret_rule:
+            return [condition_expr, rule]
+        else:
+            self.add_rule(condition_expr, rule)
+
+
+    def handle_children(self, data, child_type):
+        # Build a dict, the key is the keyword used to decide how they are run
+        # the items and sub items are the various rules and sub rules
+        rules = {child_type:[]}
+        conditions = []
+
+        for item in data[child_type]:
+            rule = self.__parse_items(item, True)
+            if rule != "" and isinstance(rule, list):
+                rules[child_type].append(rule[1])
+                conditions.append(rule[0])
+            else:
+                rules[child_type].append(rule)
+
+        return [conditions, rules]
 
     def generate_condition_code(self, condition, result):
         return "logger.i(\"condition: ({}) => {}\")".format(condition,
                 str(result))
 
-    def __parse_items(self, item):
-        keys = list(item.keys())
+    def __parse_items(self, item, ret_rule):
+        rule = None
+
+        if "parallel" in item:
+            rule = self.handle_children(item, "parallel")
+        if "sequence" in item:
+            rule = self.handle_children(item, "sequence")
+        if "exclusive" in item:
+            rule = self.handle_children(item, "exclusive")
         if "condition" in item:
-            self.handle_condition(item)
+            rule = self.handle_condition(item, ret_rule)
         elif "emit" in item:
-            self.handle_emit(item, False)
+            rule = self.handle_emit(item, ret_rule, False)
+            if rule != None:
+                rule = compile(rule[1], '<string>', 'exec')
+        if rule:
+            return rule
 
     def parse_rules(self, rules_file):
         '''
@@ -166,7 +197,7 @@ class State(object):
         # Currently we support only lists in yaml at base level
         if issubclass(type(data), list):
             for item in data:
-                self.__parse_items(item)
+                rules = self.__parse_items(item, False)
 
     def add_rule(self, condition, rule):
         tracked_signal = None
