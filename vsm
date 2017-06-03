@@ -144,6 +144,7 @@ class State(object):
             self.add_rule(condition_expr, rule)
 
 
+
     def handle_children(self, data, child_type):
         # Build a dict, the key is the keyword used to decide how they are run
         # the items and sub items are the various rules and sub rules
@@ -198,6 +199,39 @@ class State(object):
         if issubclass(type(data), list):
             for item in data:
                 rules = self.__parse_items(item, False)
+
+    def add_rules(self, conditions, rules):
+        names = []
+        attributes = []
+
+        if isinstance(conditions, list) and isinstance(rules, dict):
+            for condition in conditions:
+                self.__get_ast_info(condition, names, attributes)
+
+            rule_id = str(uuid.uuid4())
+            self.rules[rule_id] = rules
+            for name in names:
+                if name in self.signals.keys() and isinstance(self.signals[name], list):
+                    self.signals[name].append(rule_id)
+                else:
+                    self.signals[name] = [rule_id]
+
+    def __exec_child_rule(self, rule):
+        key = list(rule.keys())[0]
+        if key == "exclusive" or key == 'parallel' or key == "sequence":
+            for item in rule[key]:
+                if isinstance(item, str):
+                    self.__exec_child_rule(item)
+                else:
+                    try:
+                        if key == 'exclusive' or "sequence":
+                            exec(item, globals(), vars(self.variables))
+                        else:
+                            threading.Thread(target=exec, args=(item, globals(),
+                                                vars(self.variables))).start()
+                    except NameError:
+                        pass
+
 
     def add_rule(self, condition, rule):
         tracked_signal = None
