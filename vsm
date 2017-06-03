@@ -138,12 +138,11 @@ class State(object):
         ast.fix_missing_locations(ast_module)
 
         rule = compile(ast_module, '<string>', 'exec')
+
         if ret_rule:
             return [condition_expr, rule]
         else:
             self.add_rule(condition_expr, rule)
-
-
 
     def handle_children(self, data, child_type):
         # Build a dict, the key is the keyword used to decide how they are run
@@ -200,22 +199,6 @@ class State(object):
             for item in data:
                 rules = self.__parse_items(item, False)
 
-    def add_rules(self, conditions, rules):
-        names = []
-        attributes = []
-
-        if isinstance(conditions, list) and isinstance(rules, dict):
-            for condition in conditions:
-                self.__get_ast_info(condition, names, attributes)
-
-            rule_id = str(uuid.uuid4())
-            self.rules[rule_id] = rules
-            for name in names:
-                if name in self.signals.keys() and isinstance(self.signals[name], list):
-                    self.signals[name].append(rule_id)
-                else:
-                    self.signals[name] = [rule_id]
-
     def __exec_child_rule(self, rule):
         key = list(rule.keys())[0]
         if key == "exclusive" or key == 'parallel' or key == "sequence":
@@ -233,11 +216,7 @@ class State(object):
                         pass
 
 
-    def add_rule(self, condition, rule):
-        tracked_signal = None
-
-        names = []
-        attributes = []
+    def __get_ast_info(self, condition, names, attributes):
         for node in ast.walk(condition):
             if isinstance(node, ast.Attribute):
                 attributes.append(node.attr)
@@ -248,10 +227,36 @@ class State(object):
                     attributes = []
                 names.append(name)
 
+    def add_rule(self, condition, rule):
+        names = []
+        attributes = []
+
+        self.__get_ast_info(condition, names, attributes)
         for signal_name in names:
             if not signal_name in self.rules:
                 self.rules[signal_name] = []
             self.rules[signal_name].append(rule)
+
+        for signal_name in names:
+            if not signal_name in self.rules:
+                self.rules[signal_name] = []
+            self.rules[signal_name].append(rule)
+
+    def add_rules(self, conditions, rules):
+        names = []
+        attributes = []
+
+        if isinstance(conditions, list) and isinstance(rules, dict):
+            for condition in conditions:
+                self.__get_ast_info(condition, names, attributes)
+
+            rule_id = str(uuid.uuid4())
+            self.rules[rule_id] = rules
+            for name in names:
+                if name in self.signals.keys() and isinstance(self.signals[name], list):
+                    self.signals[name].append(rule_id)
+                else:
+                    self.signals[name] = [rule_id]
 
     def got_signal(self, signal, value):
         vars(self.variables)[signal] = value
@@ -263,16 +268,21 @@ class State(object):
 
         # No conditions based on the signal that was emitted,
         # nothing to be done.
-        if not signal in self.rules:
+        if not signal in self.rules and not signal in self.signals.keys():
             return
 
-        for rule in self.rules[signal]:
-            try:
-                exec(rule, globals(), vars(self.variables))
-            except NameError:
-                # Names used in rules are not always present
-                # in the state.
-                pass
+        elif signal in self.rules:
+            for rule in self.rules[signal]:
+                try:
+                    exec(rule, globals(), vars(self.variables))
+                except NameError:
+                    # Names used in rules are not always present
+                    # in the state.
+                    pass
+
+        elif signal in self.signals.keys():
+            for item in list(set(self.signals[signal])):
+                self.__exec_child_rule(self.rules[item])
 
 
 def send(signal, value):
