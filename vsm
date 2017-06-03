@@ -198,6 +198,8 @@ class State(object):
         if issubclass(type(data), list):
             for item in data:
                 rules = self.__parse_items(item, False)
+                if rules:
+                    self.add_rules(rules[0], rules[1])
 
     def __exec_child_rule(self, rule):
         key = list(rule.keys())[0]
