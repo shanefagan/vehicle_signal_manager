@@ -1,0 +1,8 @@
+# YAML
+# Goal: Turn on back light when in reverse
+
+condition:
+ - car.gear == 'reverse'
+
+emit:
+ signal: car.backup
